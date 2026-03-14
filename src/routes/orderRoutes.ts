@@ -5,6 +5,7 @@ import {
   getOrders,
   getOrderById,
   updateOrderStatus,
+  getOrdersByTable,
 } from '../controllers/orderController';
 import { protect, kitchenOnly } from '../middlewares/auth';
 
@@ -13,6 +14,8 @@ const router = express.Router();
 router.route('/')
   .post(createOrder)     // Public (Customer app creates order)
   .get(protect, getOrders); // Protected (Kitchen, Admin fetches orders)
+
+router.get('/table/:tableNumber', getOrdersByTable); // Public: fetch orders for a specific table
 
 router.route('/:id')
   .get(getOrderById)

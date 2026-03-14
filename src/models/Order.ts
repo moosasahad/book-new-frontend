@@ -3,6 +3,7 @@ import mongoose, { Document, Schema } from 'mongoose';
 export interface IOrderItem {
   menuItemId: mongoose.Types.ObjectId;
   name: string;
+  image: string; // Added image for order history
   quantity: number;
   price: number;
   notes?: string;
@@ -19,6 +20,9 @@ export interface IOrder extends Document {
   totalAmount: number;
   status: 'new' | 'cooking' | 'ready' | 'completed' | 'cancelled';
   paymentStatus: 'pending' | 'paid';
+  customerName?: string;
+  customerPhone?: string;
+  customerSessionId?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -26,6 +30,7 @@ export interface IOrder extends Document {
 const orderItemSchema = new Schema<IOrderItem>({
   menuItemId: { type: Schema.Types.ObjectId, ref: 'MenuItem', required: true },
   name: { type: String, required: true },
+  image: { type: String }, // Store image dynamically fetched
   quantity: { type: Number, required: true, min: 1 },
   price: { type: Number, required: true },
   notes: { type: String },
@@ -51,6 +56,9 @@ const orderSchema = new Schema<IOrder>(
       enum: ['pending', 'paid'],
       default: 'pending',
     },
+    customerName: { type: String },
+    customerPhone: { type: String },
+    customerSessionId: { type: String },
   },
   {
     timestamps: true,

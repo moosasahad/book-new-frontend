@@ -6,6 +6,10 @@ import { MenuItem } from '../models/MenuItem';
 // @access  Public
 export const getMenuItems = async (req: Request, res: Response) => {
   try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const skip = (page - 1) * limit;
+
     const { category, search } = req.query;
     
     // Build filter object
@@ -22,10 +26,20 @@ export const getMenuItems = async (req: Request, res: Response) => {
       ];
     }
 
+    const total = await MenuItem.countDocuments(filter);
     const items = await MenuItem.find(filter)
       .populate('category')
-      .sort({ createdAt: -1 });
-    res.json(items);
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    res.json({
+      items,
+      total,
+      page,
+      limit,
+      hasMore: total > skip + items.length
+    });
   } catch (error) {
     res.status(500).json({ message: 'Error fetching menu items' });
   }

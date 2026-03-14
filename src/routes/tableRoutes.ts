@@ -9,7 +9,7 @@ router.route('/')
   .post(protect, adminOnly, createTable);
 
 router.route('/:id')
-  .put(protect, adminOnly, updateTable);
+  .put(protect, updateTable);
 
 router.get('/validate/:id', validateTable);
 

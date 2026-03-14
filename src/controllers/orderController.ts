@@ -17,22 +17,46 @@ export const createOrder = async (req: Request, res: Response) => {
       return;
     }
 
-    // Verify items and calculate total (simple validation for now)
-    const validatedItems = items.map((item: any) => ({
-      menuItemId: item.menuItemId,
-      name: item.name,
-      quantity: item.quantity,
-      price: item.price,
-      notes: item.notes,
-      selectedOptions: item.selectedOptions || [],
-    }));
+    const validatedItems = [];
+    let calculatedTotal = 0;
+
+    for (const item of items) {
+      const menuItem = await MenuItem.findById(item.menuItemId);
+      if (!menuItem) {
+        return res.status(404).json({ message: `Menu item not found` });
+      }
+
+      let optionsTotal = 0;
+      if (item.selectedOptions && item.selectedOptions.length > 0) {
+         item.selectedOptions.forEach((opt: any) => {
+            optionsTotal += (Number(opt.priceModifier) || 0);
+         });
+      }
+
+      const finalPrice = menuItem.price + optionsTotal;
+
+      validatedItems.push({
+        menuItemId: menuItem._id,
+        name: menuItem.name,
+        image: menuItem.image || '',
+        quantity: item.quantity,
+        price: finalPrice,
+        notes: item.notes,
+        selectedOptions: item.selectedOptions || [],
+      });
+      
+      calculatedTotal += (finalPrice * item.quantity);
+    }
 
     const order = new Order({
       tableNumber,
       items: validatedItems,
-      totalAmount: totalAmount || 0, // Fallback to provided total or 0
+      totalAmount: calculatedTotal,
       status: 'new',
       paymentStatus: 'pending',
+      ...(req.body.customerName && { customerName: req.body.customerName }),
+      ...(req.body.customerPhone && { customerPhone: req.body.customerPhone }),
+      ...(req.body.customerSessionId && { customerSessionId: req.body.customerSessionId }),
     });
 
     const createdOrder = await order.save();
@@ -68,8 +92,39 @@ export const updateOrder = async (req: Request, res: Response) => {
       return res.status(400).json({ message: 'Only NEW orders can be edited' });
     }
 
-    order.items = items;
-    order.totalAmount = totalAmount;
+    const validatedItems = [];
+    let calculatedTotal = 0;
+
+    for (const item of items) {
+      const menuItem = await MenuItem.findById(item.menuItemId);
+      if (!menuItem) {
+        return res.status(404).json({ message: `Menu item not found` });
+      }
+
+      let optionsTotal = 0;
+      if (item.selectedOptions && item.selectedOptions.length > 0) {
+         item.selectedOptions.forEach((opt: any) => {
+            optionsTotal += (Number(opt.priceModifier) || 0);
+         });
+      }
+
+      const finalPrice = menuItem.price + optionsTotal;
+
+      validatedItems.push({
+        menuItemId: menuItem._id,
+        name: menuItem.name,
+        image: menuItem.image || '',
+        quantity: item.quantity,
+        price: finalPrice,
+        notes: item.notes,
+        selectedOptions: item.selectedOptions || [],
+      });
+      
+      calculatedTotal += (finalPrice * item.quantity);
+    }
+
+    order.items = validatedItems;
+    order.totalAmount = calculatedTotal;
     const updatedOrder = await order.save();
 
     // Notify listeners
@@ -89,14 +144,66 @@ export const updateOrder = async (req: Request, res: Response) => {
 // @access  Private (Kitchen/Admin)
 export const getOrders = async (req: Request, res: Response) => {
   try {
-    const { status } = req.query;
-    const filter = status && status !== 'all' ? { status } : {};
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const skip = (page - 1) * limit;
+
+    const { status, startDate, endDate } = req.query;
+    const filter: any = status && status !== 'all' ? { status } : {};
     
+    if (startDate && endDate) {
+      filter.createdAt = {
+        $gte: new Date(startDate as string),
+        $lte: new Date(new Date(endDate as string).setHours(23, 59, 59, 999)),
+      };
+    }
+    
+    const total = await Order.countDocuments(filter);
     // Sort by oldest first for kitchen efficiency
-    const orders = await Order.find(filter).sort({ createdAt: 1 });
-    res.json(orders);
+    const orders = await Order.find(filter)
+      .sort({ createdAt: 1 })
+      .skip(skip)
+      .limit(limit);
+
+    res.json({
+      orders,
+      total,
+      page,
+      limit,
+      hasMore: total > skip + orders.length
+    });
   } catch (error) {
     res.status(500).json({ message: 'Error fetching orders' });
+  }
+};
+
+// @desc    Get orders by table number (for customer app)
+// @route   GET /api/orders/table/:tableNumber
+// @access  Public
+export const getOrdersByTable = async (req: Request, res: Response) => {
+  try {
+    const { tableNumber } = req.params;
+    const { sessionId } = req.query;
+    
+    // Fetch orders from the last 24 hours to show current dining session history
+    const yesterday = new Date();
+    yesterday.setHours(yesterday.getHours() - 24);
+
+    const query: any = {
+      tableNumber: Number(tableNumber),
+      createdAt: { $gte: yesterday }
+    };
+
+    // If session ID is provided, strictly filter by it
+    if (sessionId) {
+      query.customerSessionId = sessionId;
+    }
+
+    const orders = await Order.find(query).sort({ createdAt: -1 });
+
+    res.json(orders);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching table orders' });
   }
 };
 

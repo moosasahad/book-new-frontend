@@ -8,15 +8,24 @@ import { MenuItem } from '../models/MenuItem';
 // @access  Private/Admin
 export const getAnalytics = async (req: Request, res: Response) => {
   try {
-    const { period } = req.query;
+    const { period, startDate, endDate } = req.query;
 
-    const dateLimit = new Date();
-    if (period === 'week') dateLimit.setDate(dateLimit.getDate() - 7);
-    else if (period === 'month') dateLimit.setMonth(dateLimit.getMonth() - 1);
-    else dateLimit.setDate(dateLimit.getDate() - 1); // today
+    let dateLimit: Date;
+    let periodEnd = new Date();
+
+    if (startDate && endDate) {
+      dateLimit = new Date(startDate as string);
+      periodEnd = new Date(endDate as string);
+      periodEnd.setHours(23, 59, 59, 999);
+    } else {
+      dateLimit = new Date();
+      if (period === 'week') dateLimit.setDate(dateLimit.getDate() - 7);
+      else if (period === 'month') dateLimit.setMonth(dateLimit.getMonth() - 1);
+      else dateLimit.setDate(dateLimit.getDate() - 1); // today
+    }
 
     const orders = await Order.find({
-      createdAt: { $gte: dateLimit },
+      createdAt: { $gte: dateLimit, $lte: periodEnd },
       status: { $in: ['completed', 'ready', 'cooking', 'new'] },
     });
 
@@ -24,13 +33,12 @@ export const getAnalytics = async (req: Request, res: Response) => {
     const totalOrders = orders.length;
 
     // Simple trend: compare with the same length period before
-    const prevDateLimit = new Date(dateLimit);
-    const now = new Date();
-    const msInPeriod = now.getTime() - dateLimit.getTime();
-    prevDateLimit.setTime(dateLimit.getTime() - msInPeriod);
+    const msInPeriod = periodEnd.getTime() - dateLimit.getTime();
+    const prevDateLimit = new Date(dateLimit.getTime() - msInPeriod);
+    const prevDateEnd = new Date(dateLimit.getTime() - 1);
 
     const prevOrders = await Order.find({
-      createdAt: { $gte: prevDateLimit, $lt: dateLimit },
+      createdAt: { $gte: prevDateLimit, $lte: prevDateEnd },
       status: { $in: ['completed', 'ready', 'cooking', 'new'] },
     });
     const prevRevenue = prevOrders.reduce((sum, o) => sum + o.totalAmount, 0);
@@ -58,30 +66,55 @@ export const getAnalytics = async (req: Request, res: Response) => {
   }
 };
 
-// @desc    Get revenue chart data (last 7 days aggregated from DB)
+// @desc    Get revenue chart data
 // @route   GET /api/analytics/revenue
 // @access  Private/Admin
 export const getRevenue = async (req: Request, res: Response) => {
   try {
-    const days = 7;
+    const { startDate, endDate } = req.query;
     const result: { time: string; revenue: number; orders: number }[] = [];
 
-    for (let i = days - 1; i >= 0; i--) {
-      const start = new Date();
-      start.setDate(start.getDate() - i);
-      start.setHours(0, 0, 0, 0);
+    let start = new Date();
+    let end = new Date();
+    let daysToFetch: number;
 
-      const end = new Date(start);
+    if (startDate && endDate) {
+      start = new Date(startDate as string);
+      start.setHours(0, 0, 0, 0);
+      end = new Date(endDate as string);
       end.setHours(23, 59, 59, 999);
+      
+      const diffTime = Math.abs(end.getTime() - start.getTime());
+      daysToFetch = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      if (daysToFetch > 31) daysToFetch = 31; // Limit for chart readability
+    } else {
+      daysToFetch = 7;
+      start.setDate(start.getDate() - (daysToFetch - 1));
+      start.setHours(0, 0, 0, 0);
+      end.setHours(23, 59, 59, 999);
+    }
+
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+    for (let i = daysToFetch - 1; i >= 0; i--) {
+      const currentStart = startDate && endDate ? new Date(start) : new Date();
+      if (!(startDate && endDate)) {
+        currentStart.setDate(currentStart.getDate() - i);
+      } else {
+        currentStart.setDate(start.getDate() + (daysToFetch - 1 - i));
+      }
+      currentStart.setHours(0, 0, 0, 0);
+
+      const currentEnd = new Date(currentStart);
+      currentEnd.setHours(23, 59, 59, 999);
 
       const dayOrders = await Order.find({
-        createdAt: { $gte: start, $lte: end },
+        createdAt: { $gte: currentStart, $lte: currentEnd },
         status: { $in: ['completed', 'ready', 'cooking', 'new'] },
       });
 
-      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
       result.push({
-        time: dayNames[start.getDay()],
+        time: daysToFetch > 7 ? `${currentStart.getDate()}/${currentStart.getMonth() + 1}` : dayNames[currentStart.getDay()],
         revenue: +dayOrders.reduce((s, o) => s + o.totalAmount, 0).toFixed(2),
         orders: dayOrders.length,
       });
@@ -93,15 +126,25 @@ export const getRevenue = async (req: Request, res: Response) => {
   }
 };
 
-// @desc    Get top selling items (aggregated from Order items)
+// @desc    Get top selling items
 // @route   GET /api/analytics/top-items
 // @access  Private/Admin
 export const getTopItems = async (req: Request, res: Response) => {
   try {
-    // Aggregate items across all orders
-    const orders = await Order.find({
+    const { startDate, endDate } = req.query;
+    
+    const filter: any = {
       status: { $in: ['completed', 'ready', 'cooking', 'new'] },
-    }).lean();
+    };
+
+    if (startDate && endDate) {
+      filter.createdAt = {
+        $gte: new Date(startDate as string),
+        $lte: new Date(new Date(endDate as string).setHours(23, 59, 59, 999)),
+      };
+    }
+
+    const orders = await Order.find(filter).lean();
 
     const itemMap: Record<string, { name: string; salesCount: number; revenue: number; category: string }> = {};
 
