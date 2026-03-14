@@ -36,6 +36,10 @@ app.get('/api', (req, res) => {
   res.json({ message: 'Restaurant POS API is running...' });
 });
 
+app.get('/', (req, res) => {
+  res.send('Backend Server is Live! Go to /api for endpoints.');
+});
+
 // Error Handling
 app.use(notFound);
 app.use(errorHandler);
