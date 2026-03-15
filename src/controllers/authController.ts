@@ -5,7 +5,7 @@ import { User, IUser } from '../models/User';
 
 const generateToken = (id: string, role: string) => {
   return jwt.sign({ id, role }, process.env.JWT_SECRET || 'secret', {
-    expiresIn: (process.env.JWT_EXPIRES_IN as any) || '1d',
+    expiresIn: '1d',
   });
 };
 
@@ -13,12 +13,15 @@ const generateToken = (id: string, role: string) => {
 // @route   POST /api/auth/login
 // @access  Public
 export const authUser = async (req: Request, res: Response) => {
-    console.log("res body", req.body)
   try {
     const { email, password } = req.body;
     const user = await User.findOne({ email });
 
     if (user && (await bcrypt.compare(password, user.passwordHash))) {
+      if (user.status !== 'active' || user.isActive === false) {
+        res.status(403).json({ message: 'Your account has been blocked. Please contact the administrator.' });
+        return;
+      }
       res.json({
         _id: user._id,
         name: user.name,
@@ -30,16 +33,14 @@ export const authUser = async (req: Request, res: Response) => {
       res.status(401).json({ message: 'Invalid email or password' });
     }
   } catch (error) {
-    console.log("error", error)
     res.status(500).json({ message: 'Server error during login' });
   }
 };
 
-// @desc    Register a new user
+// @desc    Register a new user (Internal/Dev only)
 // @route   POST /api/auth/register
-// @access  Public (should be protected in prod)
+// @access  Public
 export const registerUser = async (req: Request, res: Response) => {
-
   try {
     const { name, email, password, role } = req.body;
 
@@ -71,7 +72,6 @@ export const registerUser = async (req: Request, res: Response) => {
       res.status(400).json({ message: 'Invalid user data' });
     }
   } catch (error) {
-    console.log("error", error)
     res.status(500).json({ message: 'Server error during registration' });
   }
 };
@@ -92,21 +92,27 @@ export const getUserProfile = async (req: any, res: Response) => {
   }
 };
 
-// @desc    Kitchen PIN login
+// @desc    Kitchen login (Email/Password)
 // @route   POST /api/auth/kitchen-login
 // @access  Public
 export const kitchenLogin = async (req: Request, res: Response) => {
   try {
-    const { pin } = req.body;
-    // For demo/simplicity, we use hardcoded PIN. 
-    // In prod, this could verify against a special kitchen user or config.
-    if (pin === '1234') {
+    const { email, password } = req.body;
+    const user = await User.findOne({ email, role: 'kitchen' });
+
+    if (user && (await bcrypt.compare(password, user.passwordHash))) {
+      if (user.status !== 'active' || user.isActive === false) {
+        res.status(403).json({ message: 'Kitchen account is blocked. Please contact the administrator.' });
+        return;
+      }
       res.json({
-        role: 'kitchen',
-        token: generateToken('kitchen_user_id', 'kitchen'),
+        _id: user._id,
+        name: user.name,
+        role: user.role,
+        token: generateToken(String(user._id), user.role),
       });
     } else {
-      res.status(401).json({ message: 'Invalid PIN' });
+      res.status(401).json({ message: 'Invalid kitchen credentials' });
     }
   } catch (error) {
     res.status(500).json({ message: 'Server error during kitchen login' });

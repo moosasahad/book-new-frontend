@@ -68,7 +68,7 @@ export const createOrder = async (req: Request, res: Response) => {
     emitOrderUpdate(tableNumber, {
       type: 'ORDER_CREATED',
       order: createdOrder
-    });
+    }, createdOrder.customerSessionId);
 
     res.status(201).json(createdOrder);
   } catch (error: any) {
@@ -131,7 +131,7 @@ export const updateOrder = async (req: Request, res: Response) => {
     emitOrderUpdate(order.tableNumber, {
       type: 'ORDER_UPDATED',
       order: updatedOrder
-    });
+    }, updatedOrder.customerSessionId);
 
     res.json(updatedOrder);
   } catch (error: any) {
@@ -257,7 +257,7 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
         orderId: order._id,
         status: status,
         order: updatedOrder
-      });
+      }, order.customerSessionId);
 
       // If completed, maybe free the table (depending on business logic)
       if (status === 'completed' && order.paymentStatus === 'paid') {

@@ -9,6 +9,7 @@ import orderRoutes from './routes/orderRoutes';
 import tableRoutes from './routes/tableRoutes';
 import analyticsRoutes from './routes/analyticsRoutes';
 import categoryRoutes from './routes/categoryRoutes';
+import userRoutes from './routes/userRoutes';
 import { notFound, errorHandler } from './middlewares/errorHandler';
 
 dotenv.config();
@@ -30,6 +31,7 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/tables', tableRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/categories', categoryRoutes);
+app.use('/api/users', userRoutes);
 
 // General route for health check
 app.get('/api', (req, res) => {

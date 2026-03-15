@@ -1,0 +1,26 @@
+[
+  {
+    "_id": "69b51035b6a2d23c6e2f1602",
+    "name": "admin",
+    "email": "admin@nexcrow.com",
+    "passwordHash": "$2b$10$N1o7shl/gNHWLDIlZwVLf.XXUU6vVuLgbXDOWmxB7tz2wVfpiu8t6",
+    "role": "admin",
+    "createdAt": "2026-03-14T07:37:25.163Z",
+    "updatedAt": "2026-03-15T15:19:41.140Z",
+    "__v": 0,
+    "status": "active",
+    "isActive": true
+  },
+  {
+    "_id": "69b6d749bbbfd69c50ba6d5e",
+    "name": "moosa",
+    "email": "moosa@gmail.com",
+    "passwordHash": "$2b$10$gR0ItO2R56TQDJsnVdxY.Ob.SiiEdJUHsiSVDFafyLbN1hKAF0RGu",
+    "role": "kitchen",
+    "status": "active",
+    "isActive": true,
+    "createdAt": "2026-03-15T15:59:05.367Z",
+    "updatedAt": "2026-03-15T15:59:49.370Z",
+    "__v": 0
+  }
+]

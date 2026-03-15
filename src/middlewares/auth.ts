@@ -14,19 +14,15 @@ export const protect = async (req: AuthRequest, res: Response, next: NextFunctio
       token = req.headers.authorization.split(' ')[1];
       const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret') as any;
 
-      // Handle virtual kitchen user (no DB lookup needed)
-      if (decoded.id === 'kitchen_user_id') {
-        req.user = {
-          _id: 'kitchen_user_id',
-          name: 'Kitchen Staff',
-          role: 'kitchen',
-        } as any;
-        return next();
-      }
 
       const user = await User.findById(decoded.id).select('-passwordHash');
       if (!user) {
         res.status(401).json({ message: 'Not authorized, user not found' });
+        return;
+      }
+
+      if (user.status !== 'active') {
+        res.status(403).json({ message: 'Your account has been blocked. Access denied.' });
         return;
       }
 

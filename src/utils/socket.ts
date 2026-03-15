@@ -20,6 +20,16 @@ export const initSocket = (server: HttpServer) => {
       console.log(`User ${socket.id} joined table_${tableNumber}`);
     });
 
+    socket.on('join_session', (sessionId) => {
+      socket.join(`session_${sessionId}`);
+      console.log(`User ${socket.id} joined session_${sessionId}`);
+    });
+
+    socket.on('join_user', (userId) => {
+      socket.join(`user_${userId}`);
+      console.log(`User ${socket.id} joined user_${userId}`);
+    });
+
     socket.on('join_kitchen', () => {
       socket.join('kitchen');
       console.log(`User ${socket.id} joined kitchen room`);
@@ -40,11 +50,23 @@ export const getIO = () => {
   return io;
 };
 
-export const emitOrderUpdate = (tableNumber: number, data: any) => {
+export const emitOrderUpdate = (tableNumber: number, data: any, sessionId?: string) => {
   if (io) {
     // Notify specific table
     io.to(`table_${tableNumber}`).emit('order_update', data);
+    
+    // Notify specific session if provided
+    if (sessionId) {
+      io.to(`session_${sessionId}`).emit('session_order_update', data);
+    }
+
     // Notify kitchen
     io.to('kitchen').emit('order_event', data);
+  }
+};
+
+export const emitUserUpdate = (userId: string, data: any) => {
+  if (io) {
+    io.to(`user_${userId}`).emit('user_status_update', data);
   }
 };
