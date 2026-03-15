@@ -23,6 +23,8 @@ export interface IOrder extends Document {
   customerName?: string;
   customerPhone?: string;
   customerSessionId?: string;
+  waiterId?: mongoose.Types.ObjectId;
+  waiterName?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -59,6 +61,8 @@ const orderSchema = new Schema<IOrder>(
     customerName: { type: String },
     customerPhone: { type: String },
     customerSessionId: { type: String },
+    waiterId: { type: Schema.Types.ObjectId, ref: 'User' },
+    waiterName: { type: String },
   },
   {
     timestamps: true,

@@ -6,14 +6,17 @@ import {
   getOrderById,
   updateOrderStatus,
   getOrdersByTable,
+  getWaiterOrders,
 } from '../controllers/orderController';
-import { protect, kitchenOnly } from '../middlewares/auth';
+import { protect, kitchenOnly, staffOnly } from '../middlewares/auth';
 
 const router = express.Router();
 
 router.route('/')
-  .post(createOrder)     // Public (Customer app creates order)
+  .post(protect, createOrder)     // Protected: waiter token attaches name; customers without token still can't call this
   .get(protect, getOrders); // Protected (Kitchen, Admin fetches orders)
+
+router.get('/my-orders', protect, staffOnly, getWaiterOrders); // Waiter's own order history
 
 router.get('/table/:tableNumber', getOrdersByTable); // Public: fetch orders for a specific table
 

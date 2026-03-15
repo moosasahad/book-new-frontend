@@ -56,3 +56,11 @@ export const kitchenOnly = (req: AuthRequest, res: Response, next: NextFunction)
     res.status(403).json({ message: 'Not authorized for kitchen access' });
   }
 };
+
+export const staffOnly = (req: AuthRequest, res: Response, next: NextFunction) => {
+  if (req.user && (req.user.role === 'staff' || req.user.role === 'admin')) {
+    next();
+  } else {
+    res.status(403).json({ message: 'Not authorized for staff access' });
+  }
+};

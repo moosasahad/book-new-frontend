@@ -2,13 +2,14 @@ import { Request, Response } from 'express';
 import { Order } from '../models/Order';
 import { Table } from '../models/Table';
 import { MenuItem } from '../models/MenuItem';
+import { AuthRequest } from '../middlewares/auth';
 
 import { emitOrderUpdate } from '../utils/socket';
 
 // @desc    Create new order
 // @route   POST /api/orders
-// @access  Public (from customer app)
-export const createOrder = async (req: Request, res: Response) => {
+// @access  Public (Customer) or Private (Waiter/Staff)
+export const createOrder = async (req: AuthRequest, res: Response) => {
   try {
     const { tableNumber, items, totalAmount } = req.body;
 
@@ -48,6 +49,9 @@ export const createOrder = async (req: Request, res: Response) => {
       calculatedTotal += (finalPrice * item.quantity);
     }
 
+    // Detect if request is from an authenticated waiter/staff
+    const isWaiter = req.user && (req.user.role === 'staff' || req.user.role === 'admin');
+
     const order = new Order({
       tableNumber,
       items: validatedItems,
@@ -57,6 +61,7 @@ export const createOrder = async (req: Request, res: Response) => {
       ...(req.body.customerName && { customerName: req.body.customerName }),
       ...(req.body.customerPhone && { customerPhone: req.body.customerPhone }),
       ...(req.body.customerSessionId && { customerSessionId: req.body.customerSessionId }),
+      ...(isWaiter && { waiterId: req.user!._id, waiterName: req.user!.name }),
     });
 
     const createdOrder = await order.save();
@@ -148,7 +153,7 @@ export const getOrders = async (req: Request, res: Response) => {
     const limit = parseInt(req.query.limit as string) || 20;
     const skip = (page - 1) * limit;
 
-    const { status, startDate, endDate } = req.query;
+    const { status, startDate, endDate, search } = req.query;
     const filter: any = status && status !== 'all' ? { status } : {};
     
     if (startDate && endDate) {
@@ -156,6 +161,21 @@ export const getOrders = async (req: Request, res: Response) => {
         $gte: new Date(startDate as string),
         $lte: new Date(new Date(endDate as string).setHours(23, 59, 59, 999)),
       };
+    }
+
+    if (search) {
+      const searchRegex = new RegExp(search as string, 'i');
+      filter.$or = [
+        { customerName: searchRegex },
+        { waiterName: searchRegex },
+      ];
+      if (!isNaN(Number(search))) {
+        filter.$or.push({ tableNumber: Number(search) });
+      }
+      if ((search as string).length >= 4) {
+        // Try matching against order ID (end of ID)
+        filter.$or.push({ _id: { $regex: search + '$', $options: 'i' } });
+      }
     }
     
     const total = await Order.countDocuments(filter);
@@ -277,5 +297,28 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
     }
   } catch (error) {
     res.status(500).json({ message: 'Error updating order' });
+  }
+};
+
+// @desc    Get orders placed by the currently logged-in waiter/staff
+// @route   GET /api/orders/my-orders
+// @access  Private (Staff/Admin)
+export const getWaiterOrders = async (req: AuthRequest, res: Response) => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const skip = (page - 1) * limit;
+
+    const filter: any = { waiterId: req.user!._id };
+
+    const total = await Order.countDocuments(filter);
+    const orders = await Order.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    res.json({ orders, total, page, limit, hasMore: total > skip + orders.length });
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching waiter orders' });
   }
 };
