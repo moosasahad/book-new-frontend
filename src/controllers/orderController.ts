@@ -159,6 +159,15 @@ export const getOrders = async (req: Request, res: Response) => {
     }
     
     const total = await Order.countDocuments(filter);
+    
+    // Calculate status counts for all statuses regardless of current filter
+    const [newCount, cookingCount, readyCount, completedCount] = await Promise.all([
+      Order.countDocuments({ status: 'new' }),
+      Order.countDocuments({ status: 'cooking' }),
+      Order.countDocuments({ status: 'ready' }),
+      Order.countDocuments({ status: 'completed' })
+    ]);
+
     // Sort by oldest first for kitchen efficiency
     const orders = await Order.find(filter)
       .sort({ createdAt: 1 })
@@ -170,7 +179,14 @@ export const getOrders = async (req: Request, res: Response) => {
       total,
       page,
       limit,
-      hasMore: total > skip + orders.length
+      hasMore: total > skip + orders.length,
+      statusCounts: {
+        all: newCount + cookingCount + readyCount + completedCount,
+        new: newCount,
+        cooking: cookingCount,
+        ready: readyCount,
+        completed: completedCount
+      }
     });
   } catch (error) {
     res.status(500).json({ message: 'Error fetching orders' });
