@@ -8,6 +8,8 @@ export interface IOrderItem {
   price: number;
   notes?: string;
   selectedOptions?: Array<{
+    optionId: string;
+    choiceId: string;
     optionLabel: string;
     choiceLabel: string;
     priceModifier: number;
@@ -37,6 +39,8 @@ const orderItemSchema = new Schema<IOrderItem>({
   price: { type: Number, required: true },
   notes: { type: String },
   selectedOptions: [{
+    optionId: String,
+    choiceId: String,
     optionLabel: String,
     choiceLabel: String,
     priceModifier: Number,

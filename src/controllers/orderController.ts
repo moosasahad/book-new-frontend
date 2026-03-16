@@ -43,7 +43,13 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
         quantity: item.quantity,
         price: finalPrice,
         notes: item.notes,
-        selectedOptions: item.selectedOptions || [],
+        selectedOptions: item.selectedOptions?.map((opt: any) => ({
+          optionId: opt.optionId,
+          choiceId: opt.choiceId,
+          optionLabel: opt.optionLabel,
+          choiceLabel: opt.choiceLabel,
+          priceModifier: opt.priceModifier
+        })) || [],
       });
       
       calculatedTotal += (finalPrice * item.quantity);
@@ -122,7 +128,13 @@ export const updateOrder = async (req: Request, res: Response) => {
         quantity: item.quantity,
         price: finalPrice,
         notes: item.notes,
-        selectedOptions: item.selectedOptions || [],
+        selectedOptions: item.selectedOptions?.map((opt: any) => ({
+          optionId: opt.optionId,
+          choiceId: opt.choiceId,
+          optionLabel: opt.optionLabel,
+          choiceLabel: opt.choiceLabel,
+          priceModifier: opt.priceModifier
+        })) || [],
       });
       
       calculatedTotal += (finalPrice * item.quantity);
@@ -154,13 +166,26 @@ export const getOrders = async (req: Request, res: Response) => {
     const skip = (page - 1) * limit;
 
     const { status, startDate, endDate, search } = req.query;
-    const filter: any = status && status !== 'all' ? { status } : {};
+    let filter: any = {};
     
+    // Status filter - "all" for kitchen should mean all ACTIVE orders
+    if (status && status !== 'all') {
+      filter.status = status;
+    } else if (!status || status === 'all') {
+      filter.status = { $in: ['new', 'cooking', 'ready'] };
+    }
+
+    // Default to today's orders if no date range or search is provided
     if (startDate && endDate) {
       filter.createdAt = {
         $gte: new Date(startDate as string),
         $lte: new Date(new Date(endDate as string).setHours(23, 59, 59, 999)),
       };
+    } else if (!search) {
+      // Default to today (from midnight)
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      filter.createdAt = { $gte: today };
     }
 
     if (search) {
@@ -180,12 +205,15 @@ export const getOrders = async (req: Request, res: Response) => {
     
     const total = await Order.countDocuments(filter);
     
-    // Calculate status counts for all statuses regardless of current filter
+    // Calculate status counts (respecting the today/date filter)
+    const countFilter = { ...filter };
+    delete countFilter.status;
+
     const [newCount, cookingCount, readyCount, completedCount] = await Promise.all([
-      Order.countDocuments({ status: 'new' }),
-      Order.countDocuments({ status: 'cooking' }),
-      Order.countDocuments({ status: 'ready' }),
-      Order.countDocuments({ status: 'completed' })
+      Order.countDocuments({ ...countFilter, status: 'new' }),
+      Order.countDocuments({ ...countFilter, status: 'cooking' }),
+      Order.countDocuments({ ...countFilter, status: 'ready' }),
+      Order.countDocuments({ ...countFilter, status: 'completed' })
     ]);
 
     // Sort by oldest first for kitchen efficiency
