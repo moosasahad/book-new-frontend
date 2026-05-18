@@ -20,9 +20,10 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
 
     const validatedItems = [];
     let calculatedTotal = 0;
-
+    console.log("items",items)
     for (const item of items) {
-      const menuItem = await MenuItem.findById(item.menuItemId);
+      const menuItem = await MenuItem.findById(item.menuId);
+      console.log("menuitem",menuItem)
       if (!menuItem) {
         return res.status(404).json({ message: `Menu item not found` });
       }
@@ -67,6 +68,7 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
       ...(req.body.customerName && { customerName: req.body.customerName }),
       ...(req.body.customerPhone && { customerPhone: req.body.customerPhone }),
       ...(req.body.customerSessionId && { customerSessionId: req.body.customerSessionId }),
+      ...(req.body.voiceUrl && { voiceUrl: req.body.voiceUrl }),
       ...(isWaiter && { waiterId: req.user!._id, waiterName: req.user!.name }),
     });
 

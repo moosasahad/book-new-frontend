@@ -18,4 +18,13 @@ const storage = new CloudinaryStorage({
   } as any,
 });
 
+const genericStorage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'restaurant_pos_uploads',
+    resource_type: 'auto',
+  } as any,
+});
+
 export const upload = multer({ storage: storage });
+export const uploadGeneric = multer({ storage: genericStorage });
